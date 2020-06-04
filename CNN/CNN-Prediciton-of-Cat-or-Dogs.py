@@ -17,7 +17,9 @@ from keras.layers import Conv2D # Used to deal with images.
 from keras.layers import MaxPooling2D # Used to add pooling layer
 from keras.layers import Flatten # Used to create the large feature vector that will be the input to the network.
 from keras.layers import Dense
+from keras.layers import Dropout
 from keras.models import model_from_json
+from keras.optimizers import Adam
 
 
 # Here there is no data preprocessing because part of this preprocessing has been done manually:
@@ -34,17 +36,21 @@ classifier = Sequential()
 # Because the images have different formats and different sizes and shapes, you have to standardise the input and
 # You could use 64x64 or even higher such as 128x128 or 256x256 but this will entail much more required processing power and memory.
 # The number 3 after 64x64 is to say that we are trying to predict color images.
-classifier.add(Conv2D(64, (3, 3), input_shape = (64, 64, 3), activation = 'relu'))
+classifier.add(Conv2D(32, (3, 3), input_shape = (64, 64, 3), activation = 'relu'))
 
 # Step 2 - Pooling
 classifier.add(MaxPooling2D(pool_size = (2, 2)))
 
 # Adding a second convolutional layer
-classifier.add(Conv2D(64, (3, 3), activation = 'relu'))
+classifier.add(Conv2D(32, (3, 3), activation = 'relu'))
 classifier.add(MaxPooling2D(pool_size = (2, 2)))
 
 # Adding a third convolutional layer
-classifier.add(Conv2D(64, (3, 3), activation = 'relu'))
+classifier.add(Conv2D(32, (3, 3), activation = 'relu'))
+classifier.add(MaxPooling2D(pool_size = (2, 2)))
+
+# Adding a fourth convolutional layer
+classifier.add(Conv2D(32, (3, 3), activation = 'relu'))
 classifier.add(MaxPooling2D(pool_size = (2, 2)))
 
 # Step 3 - Flattening
@@ -55,9 +61,12 @@ classifier.add(Flatten())
 # Number of 128 is mostly obtained from experimenting.
 # Also common practice to pick a power of 2.
 # For CNNs, you only have to add the hidden layer
-classifier.add(Dense(units = 256, activation = 'relu'))
-classifier.add(Dense(units = 256, activation = 'relu'))
-classifier.add(Dense(units = 256, activation = 'relu'))
+classifier.add(Dense(units = 128, activation = 'relu'))
+classifier.add(Dropout(0.2))
+classifier.add(Dense(units = 128, activation = 'relu'))
+classifier.add(Dropout(0.2))
+classifier.add(Dense(units = 128, activation = 'relu'))
+classifier.add(Dropout(0.2))
 classifier.add(Dense(units = 1, activation = 'sigmoid'))
 
 # Compiling the CNN
@@ -65,7 +74,8 @@ classifier.add(Dense(units = 1, activation = 'sigmoid'))
 # The loss function is the parameter to choose the loss function.
 # The metrics parameter chooses the performance metric. Accuracy is the most common one.
 # For the loss function, if we have more than 2 outcomes, then the loss function will be categorical cross entropy.
-classifier.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+optimizer = Adam(lr=1e-3)
+classifier.compile(optimizer = optimizer, loss = 'binary_crossentropy', metrics = ['accuracy'])
 
 # Part 2 - Fitting the CNN to the images
 
@@ -92,21 +102,21 @@ test_datagen = ImageDataGenerator(rescale = 1./255)
 # Input the dimensions expected by the CNN. Looking above, we have specified 64x64
 # 32 corresponds to the number of images that go through the CNN after which the weight will be updated.
 # Class:mode = 'binary' because you have a binary outcome.
-training_set = train_datagen.flow_from_directory('training_set',
+training_set = train_datagen.flow_from_directory('dataset/training_set',
                                                  target_size = (64, 64),
-                                                 batch_size = 64,
+                                                 batch_size = 32,
                                                  class_mode = 'binary')
 
-test_set = test_datagen.flow_from_directory('test_set',
+test_set = test_datagen.flow_from_directory('dataset/test_set',
                                             target_size = (64, 64),
-                                            batch_size = 64,
+                                            batch_size = 32,
                                             class_mode = 'binary')
 
 # Steps_per_epoch is the number of images in the training set. Remember: all the observations of the training set pass
 # through the NN during each epoch.
 # Validaton data corresponds to the test set on which we want to evaluate the performance of the CNN.
 classifier.fit_generator(training_set,
-                         epochs=15,
+                         epochs=100,
                          validation_data=test_set)
 
 # # serialize model to JSON
@@ -139,7 +149,7 @@ classifier.fit_generator(training_set,
 import numpy as np
 from keras.preprocessing import image
 
-test_image = image.load_img('single_prediction/cat_or_dog_1.jpg', target_size = (64, 64))
+test_image = image.load_img('dataset/single_prediction/cat_or_dog_1.jpg', target_size = (64, 64))
 test_image = image.img_to_array(test_image)
 test_image = np.expand_dims(test_image, axis = 0) # The new dimension corresponds to the batch: The functions of NN,
 # like the predict function, cannot accept a single input by itself, like the image we have here.
@@ -151,9 +161,9 @@ test_image = np.expand_dims(test_image, axis = 0) # The new dimension correspond
  # Also the input into this new dimension is 1. So you have a numpy array of 1,64,64,3 with 3 denoting the RGB colors.
 result = classifier.predict(test_image)
 if result[0][0] == 1:
-    prediction = 'dog'
+    prediction = 'The single image is a dog.'
 else:
-    prediction = 'cat'
+    prediction = 'The single image is a cat.'
 
 print(prediction)
 
